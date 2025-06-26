@@ -25,11 +25,9 @@ Note: Include only as many story fields as you have stories to cover (minimum 1,
 WORD-COUNT TARGETS
 Segment, Target length
 episode_title, (just a punchy title, no dates)
-intro, 120 – 170 words
-each story, 250 – 350 words
-outro, 30 – 90 words
-
-These totals yield an audio read speed time of 140 wpm
+intro, 120-170 words
+each story, 280-420 words
+outro, 30-90 words
 
 STORY-BUILDING RULES
 Review every article.
