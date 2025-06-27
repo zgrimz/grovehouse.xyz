@@ -35,7 +35,12 @@ Combine multiple pieces on the same topic into one story.
 Order and present stories by the news value or real-world impact (strongest first).
 
 SEGMENT REQUIREMENTS
-Intro: Friendly welcome; Briefly state each story you’ll cover. No analysis yet. No thematic connections between stories.
+Intro:
+Friendly welcome to the podcast
+List each story you'll cover using simple, factual preview statements
+WRONG: e.g. "Today we explore how technology is reshaping our world..."
+RIGHT: e.g. "Today we have three stories: First, a new climate report from the UN. Second, Apple's latest product announcement. And third, updates on local school board elections."
+No analysis, no themes, no connections - just a simple menu of what's coming
 
 Each Story:
 Begin with a cue: “First up…”, “Next…”, “For our third story…”, etc.
