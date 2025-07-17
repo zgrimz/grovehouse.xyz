@@ -350,9 +350,7 @@
         let isPreviewMode = false;
         const API_KEY_STORAGE_ID = 'aeroDataBoxApiKey';
 
-        // --- NEW: Main function to initialize the tracker on page load ---
         function initializeTracker() {
-            // 1. First, try to get the key from browser's local storage
             const savedKey = localStorage.getItem(API_KEY_STORAGE_ID);
             if (savedKey) {
                 addDebugLog('Found API key in local storage.');
@@ -360,14 +358,9 @@
                 startTracking();
                 return;
             }
-
-            // 2. If not in storage, check the URL for a key
             if (checkUrlForApiKey()) {
-                // The checkUrlForApiKey function will handle starting the tracker
                 return;
             }
-            
-            // 3. If no key is found anywhere, show the setup form
             addDebugLog('No API key found, showing setup form.');
         }
 
@@ -386,8 +379,8 @@
             const logMessage = `[${timestamp}] ${message}`;
             debugLogs.push(logMessage);
             
-            if (debugLogs.length > 50) {
-                debugLogs = debugLogs.slice(-50);
+            if (debugLogs.length > 100) { 
+                debugLogs = debugLogs.slice(-100);
             }
             
             const debugConsole = document.getElementById('debugConsole');
@@ -397,12 +390,11 @@
             }
         }
         
-        // --- UPDATED: Now saves the API key to local storage ---
         function saveApiKey() {
             const input = document.getElementById('apiKeyInput');
             if (input.value.trim()) {
                 apiKey = input.value.trim();
-                localStorage.setItem(API_KEY_STORAGE_ID, apiKey); // Save the key
+                localStorage.setItem(API_KEY_STORAGE_ID, apiKey); 
                 addDebugLog('API key saved to local storage.');
                 startTracking();
             } else {
@@ -410,7 +402,6 @@
             }
         }
         
-        // --- NEW: Function to clear the saved API key and reset the app ---
         function resetApiKey() {
             if (confirm('Are you sure you want to reset your API key?')) {
                 localStorage.removeItem(API_KEY_STORAGE_ID);
@@ -430,7 +421,6 @@
             document.getElementById('trackerContent').style.display = 'block';
             if (isPreviewMode) {
                  addDebugLog('Started in Preview Mode.');
-                 // Hide the reset button in preview mode
                  document.getElementById('resetBtn').style.display = 'none';
             } else {
                  addDebugLog(`Started tracking with API key: ${apiKey.substring(0, 8)}...`);
@@ -438,7 +428,6 @@
             refreshFlights();
         }
 
-        // --- UPDATED: Now saves key to storage and cleans the URL ---
         function checkUrlForApiKey() {
             const urlParams = new URLSearchParams(window.location.search);
             const possibleKeys = ['api', 'key', 'apikey', 'rapidapi', 'token'];
@@ -449,22 +438,17 @@
                 if (keyFromUrl && keyFromUrl.trim()) {
                     addDebugLog(`Found API key in URL parameter: "${param}"`);
                     apiKey = keyFromUrl.trim();
-                    
-                    // Save the key to local storage for future visits
                     localStorage.setItem(API_KEY_STORAGE_ID, apiKey);
                     addDebugLog('Saved key from URL to local storage.');
-                    
-                    // Clean the URL to remove the key parameter
                     window.history.replaceState({}, document.title, window.location.pathname);
                     addDebugLog('Removed API key from URL.');
-                    
                     keyFound = true;
-                    break; // Stop after finding the first key
+                    break;
                 }
             }
 
             if(keyFound) {
-                startTracking(); // If we found a key, start the app
+                startTracking();
                 return true;
             }
 
@@ -475,30 +459,13 @@
 
         async function getFlightInfo(flightNumber, passenger) {
             let searchDate;
-            let logMessage;
-
-            // Check for the special case passenger
             if (passenger === 'WB') {
-                // For WB, the hardcoded search date is July 16th, 2025
-                searchDate = '2025-07-17';
-                logMessage = `Passenger ${passenger}: Searching exclusively on the fixed date ${searchDate}`;
+                searchDate = '2025-07-16';
             } else {
-                // For all other passengers, the hardcoded search date is July 17th, 2025
                 searchDate = '2025-07-17';
-                logMessage = `Passenger ${passenger}: Searching exclusively on the fixed date ${searchDate}`;
             }
-
-            addDebugLog(logMessage);
-
-            // The rest of the function remains the same
-            let result = await fetchFlightForDate(flightNumber, searchDate);
-            
-            if (!result || result.length === 0) {
-                addDebugLog(`No flights found for ${flightNumber} on ${searchDate}, trying search alternative.`);
-                return await searchFlightAlternative(flightNumber);
-            }
-            
-            return result;
+            addDebugLog(`Passenger ${passenger}: Searching exclusively on the fixed date ${searchDate}`);
+            return await fetchFlightForDate(flightNumber, searchDate);
         }
 
         async function fetchFlightForDate(flightNumber, date) {
@@ -516,145 +483,90 @@
                 addDebugLog(`API Response for ${flightNumber} on ${date}: ${response.status} ${response.statusText}`);
 
                 if (!response.ok) {
-                    if (response.status === 404) {
-                        addDebugLog(`No flights found for ${flightNumber} on ${date}`);
-                        return null;
-                    }
+                    if (response.status === 404) return null;
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
                 const data = await response.json();
-                addDebugLog(`Flight data for ${flightNumber} on ${date}: Found ${data.length} flights`);
+                
+                addDebugLog(`Flight data for ${flightNumber} on ${date}: Found ${data.length} flights. Raw JSON response:`);
+                const formattedJson = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                addDebugLog(formattedJson);
+                
                 return data;
             } catch (error) {
                 addDebugLog(`Error fetching flight ${flightNumber} on ${date}: ${error.message}`);
                 return null;
             }
         }
-
-        async function searchFlightAlternative(flightNumber) {
-            try {
-                addDebugLog(`Trying flight search for ${flightNumber}`);
-                const response = await fetch(
-                    `https://aerodatabox.p.rapidapi.com/flights/search/term?q=${flightNumber}&limit=10`,
-                    {
-                        headers: {
-                            'X-RapidAPI-Key': apiKey,
-                            'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com'
-                        }
-                    }
-                );
-
-                if (response.ok) {
-                    const searchData = await response.json();
-                    addDebugLog(`Search results for ${flightNumber}: ${JSON.stringify(searchData, null, 2)}`);
-                    
-                    if (searchData && searchData.length > 0) {
-                        const matchingFlight = searchData.find(flight => 
-                            flight.number && flight.number.includes(flightNumber.replace(/[A-Z]+/, ''))
-                        );
-                        return matchingFlight ? [matchingFlight] : null;
-                    }
-                }
-                
-                addDebugLog(`No alternative data found for ${flightNumber}`);
-                return null;
-            } catch (error) {
-                addDebugLog(`Alternative search failed for ${flightNumber}: ${error.message}`);
-                return null;
-            }
-        }
-
+        
+        // --- FINAL FIX: This function now prioritizes the record with "Unknown" status. ---
         function selectBestFlight(flights) {
             if (!flights || flights.length === 0) return null;
-            
-            const now = new Date();
-            // In preview mode, use the current time for dynamic calculations but don't check a huge range
-            if (!isPreviewMode) {
-                addDebugLog(`Selecting best flight from ${flights.length} options`);
-            
-                const sortedFlights = [...flights].sort((a, b) => {
-                    const timeA = a.departure?.scheduledTime?.utc || a.arrival?.scheduledTime?.utc;
-                    const timeB = b.departure?.scheduledTime?.utc || b.arrival?.scheduledTime?.utc;
-                    if (!timeA || !timeB) return 0;
-                    return new Date(timeA) - new Date(timeB);
-                });
-                
-                let bestFlight = null;
-                
-                for (const flight of sortedFlights) {
-                    const depTime = flight.departure?.scheduledTime?.utc;
-                    if (depTime) {
-                        const flightDep = new Date(depTime);
-                        const hoursFromNow = (flightDep - now) / (1000 * 60 * 60);
-                        
-                        addDebugLog(`Flight dep: ${depTime}, hours from now: ${hoursFromNow.toFixed(1)}`);
-                        
-                        if (hoursFromNow >= -168 && hoursFromNow <= 48) { 
-                            if (!bestFlight) {
-                                bestFlight = flight;
-                            } else {
-                                const bestDepTime = new Date(bestFlight.departure?.scheduledTime?.utc);
-                                const bestHoursFromNow = (bestDepTime - now) / (1000 * 60 * 60);
-                                
-                                if (hoursFromNow < 0 && bestHoursFromNow < 0) {
-                                    if (hoursFromNow > bestHoursFromNow) {
-                                        bestFlight = flight;
-                                    }
-                                } else if (hoursFromNow >= 0 && bestHoursFromNow < 0) {
-                                    // Don't change bestFlight
-                                } else if (hoursFromNow < 0 && bestHoursFromNow >= 0) {
-                                    bestFlight = flight;
-                                } else {
-                                    if (hoursFromNow < bestHoursFromNow) {
-                                        bestFlight = flight;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                if (bestFlight) return bestFlight;
+            if (flights.length === 1) return flights[0];
+
+            // If multiple records exist, check if one of them is the "Unknown" one, which indicates cancellation.
+            const unknownFlight = flights.find(f => f.status === 'Unknown');
+            if (unknownFlight) {
+                addDebugLog("Found a flight with 'Unknown' status. Prioritizing it as the canceled flight.");
+                return unknownFlight;
             }
             
-            return flights[0];
+            // If no "Unknown" flight, fall back to the original time-based selection logic.
+            addDebugLog("Multiple records found, but none with 'Unknown' status. Falling back to time-based selection.");
+            const now = new Date();
+            const sortedFlights = [...flights].sort((a, b) => {
+                const timeA = a.departure?.scheduledTime?.utc || '9999';
+                const timeB = b.departure?.scheduledTime?.utc || '9999';
+                return new Date(timeA) - new Date(timeB);
+            });
+            
+            let bestFlight = sortedFlights[0];
+            for (const flight of sortedFlights) {
+                const depTime = flight.departure?.scheduledTime?.utc;
+                if (depTime) {
+                    const flightDep = new Date(depTime);
+                    const hoursFromNow = (flightDep - now) / (3600000);
+                    if (Math.abs(hoursFromNow) < Math.abs((new Date(bestFlight.departure.scheduledTime.utc) - now) / 3600000)) {
+                        bestFlight = flight;
+                    }
+                }
+            }
+            return bestFlight;
         }
 
+        // --- FINAL FIX: This function now treats "Unknown" status as "Canceled". ---
         function getFlightStatus(flight) {
             if (!flight) {
-                addDebugLog('No flight data for status check');
                 return { status: 'Unknown', class: 'scheduled' };
             }
 
-            // In preview mode, we can use the `greatCircleDistance` object to determine status
-            if (isPreviewMode && flight.greatCircleDistance) {
-                if (flight.greatCircleDistance.meter === 0) return { status: 'Landed', class: 'landed' };
-                if (flight.greatCircleDistance.meter > 0 && flight.greatCircleDistance.meter < 5000000) return { status: 'En Route', class: 'en-route' };
+            // Based on the JSON data, "Unknown" is the status for the canceled flight.
+            if (flight.status === 'Unknown') {
+                return { status: 'Canceled', class: 'cancelled' };
+            }
+            
+            // Explicitly check for other known statuses from the API.
+            if (flight.status === 'Arrived' || (flight.arrival && flight.arrival.actualTime)) {
+                return { status: 'Landed', class: 'landed' };
             }
 
-            const hasLanded = flight.arrival && (flight.arrival.actualTime || flight.arrival.actual || flight.arrival.actualTimeUtc || flight.arrival.actualTimeLocal);
-            const hasDeparted = flight.departure && (flight.departure.actualTime || flight.departure.actual || flight.departure.actualTimeUtc || flight.departure.actualTimeLocal);
-
-            if (hasLanded) return { status: 'Landed', class: 'landed' };
-            if (hasDeparted) return { status: 'En Route', class: 'en-route' };
-
+            if (flight.status === 'Departed' || (flight.departure && flight.departure.actualTime)) {
+                 return { status: 'En Route', class: 'en-route' };
+            }
+            
+            // Fallback for scheduled flights that haven't departed yet.
             const now = new Date();
-            if (flight.arrival) {
-                const bestArrivalTime = flight.arrival.revisedTime || flight.arrival.predictedTime || flight.arrival.scheduledTime;
-                if (bestArrivalTime) {
-                    const arrivalDate = new Date(bestArrivalTime.utc || bestArrivalTime.local || bestArrivalTime);
-                    if ((now - arrivalDate) / (1000 * 60) > 15) return { status: 'Landed', class: 'landed' };
+            if (flight.departure?.scheduledTime?.utc) {
+                const depTime = new Date(flight.departure.scheduledTime.utc);
+                if (depTime > now) {
+                    return { status: 'Scheduled', class: 'scheduled' };
+                } else {
+                    // This handles cases where the flight is past its departure time but API status is not updated.
+                    return { status: 'En Route', class: 'en-route' };
                 }
             }
 
-            if (flight.departure) {
-                const bestDepartureTime = flight.departure.revisedTime || flight.departure.scheduledTime;
-                 if (bestDepartureTime) {
-                    const departureDate = new Date(bestDepartureTime.utc || bestDepartureTime.local || bestDepartureTime);
-                    if ((now - departureDate) / (1000 * 60) > 5) return { status: 'En Route', class: 'en-route' };
-                }
-            }
             return { status: 'Scheduled', class: 'scheduled' };
         }
 
@@ -694,60 +606,42 @@
             const status = getFlightStatus(flight);
             const isLandedClass = status.status === 'Landed' ? 'landed-card' : '';
 
-            // Variables are declared here to ensure they always exist.
             let arrivalTime = 'N/A', 
                 departureTime = 'N/A', 
                 origin = 'N/A', 
                 destination = 'N/A', 
                 timeRemaining = '', 
                 statusInfo = '',
-                arrivalLabel = "Est. Arrival:"; // This now has a default value.
+                arrivalLabel = "Est. Arrival:";
 
             if (flight) {
-                // --- START: Time and Delay Logic (UPDATED) ---
                 const depTimezone = ['JR', 'HC', 'TG', 'RC', 'ZG', 'WB', 'CD'].includes(passenger) ? 'America/New_York' : 'America/Los_Angeles';
                 let arrivalTimeObject;
 
-                departureTime = formatTime(flight.departure.actualTime || flight.departure.revisedTime || flight.departure.scheduledTime, depTimezone);
+                departureTime = formatTime(flight.departure?.actualTime || flight.departure?.revisedTime || flight.departure?.scheduledTime, depTimezone);
 
                 if (status.status === 'Landed') {
                     arrivalLabel = "Actual Arrival:";
-                    // For landed flights, prioritize the actual time
                     arrivalTimeObject = flight.arrival.actualTime || flight.arrival.revisedTime || flight.arrival.scheduledTime;
                 } else {
-                    // For all other flights, use the original estimate logic
-                    const scheduledArrival = flight.arrival.scheduledTime;
-                    const estimatedArrival = flight.arrival.revisedTime || flight.arrival.predictedTime;
+                    const scheduledArrival = flight.arrival?.scheduledTime;
+                    const estimatedArrival = flight.arrival?.revisedTime || flight.arrival?.predictedTime;
                     arrivalTimeObject = estimatedArrival || scheduledArrival;
 
-                    // Check for delays only on non-landed flights
                     if (scheduledArrival && estimatedArrival) {
-                        const scheduledDate = new Date(scheduledArrival.utc || scheduledArrival.local);
-                        const estimatedDate = new Date(estimatedArrival.utc || estimatedArrival.local);
-                        const delayMinutes = Math.round((estimatedDate - scheduledDate) / 60000);
-
+                        const delayMinutes = (new Date(estimatedArrival.utc) - new Date(scheduledArrival.utc)) / 60000;
                         if (delayMinutes > 5) {
-                            const scheduledFormatted = formatTime(scheduledArrival, 'America/Denver');
-                            statusInfo = `
-                                <div class="info-row" style="background: #fff3e0; padding: 5px; border-radius: 5px; margin-top: 5px;">
-                                    <span class="info-label" style="color: #f57c00;">Delayed:</span>
-                                    <span class="info-value" style="color: #f57c00;">
-                                        Original: ${scheduledFormatted}
-                                    </span>
-                                </div>
-                            `;
+                            statusInfo = `<div class="info-row" style="background: #fff3e0; padding: 5px; border-radius: 5px; margin-top: 5px;"><span class="info-label" style="color: #f57c00;">Delayed:</span><span class="info-value" style="color: #f57c00;">Original: ${formatTime(scheduledArrival, 'America/Denver')}</span></div>`;
                         }
                     }
                 }
                 
                 arrivalTime = formatTime(arrivalTimeObject, 'America/Denver');
-                // --- END: Time and Delay Logic (UPDATED) ---
-
-                origin = flight.departure.airport?.iata || 'N/A';
-                destination = flight.arrival.airport?.iata || 'N/A';
+                origin = flight.departure?.airport?.iata || 'N/A';
+                destination = flight.arrival?.airport?.iata || 'N/A';
 
                 if (status.status === 'En Route') {
-                    const arrivalTimeToUse = flight.arrival.revisedTime || flight.arrival.predictedTime || flight.arrival.scheduledTime;
+                    const arrivalTimeToUse = flight.arrival?.revisedTime || flight.arrival?.predictedTime || flight.arrival?.scheduledTime;
                     const remaining = getTimeRemaining(arrivalTimeToUse?.utc);
                     if(remaining) timeRemaining = `<div class="time-remaining">${remaining}</div>`;
                 }
@@ -761,7 +655,7 @@
                         <div class="info-row"><span class="info-label">Route:</span><span class="info-value">${origin} → ${destination}</span></div>
                         <div class="info-row"><span class="info-label">Status:</span><span class="status ${status.class}">${status.status}</span></div>
                         <div class="info-row"><span class="info-label">Departure:</span><span class="info-value">${departureTime}</span></div>
-                        <div class="info-row"><span class="info-label">${arrivalLabel}</span><span class="info-value">${arrivalTime}</span></div>
+                        ${status.status !== 'Canceled' ? `<div class="info-row"><span class="info-label">${arrivalLabel}</span><span class="info-value">${arrivalTime}</span></div>` : ''}
                         ${statusInfo} 
                     </div>
                     ${timeRemaining}
@@ -770,40 +664,6 @@
             `;
         }
         
-        function generateMockFlightData(passenger) {
-             const now = new Date();
-             const mockData = {
-                departure: { airport: { iata: 'JFK' } },
-                arrival: { airport: { iata: 'DEN' } },
-                greatCircleDistance: {}
-             };
-
-            switch(passenger) {
-                case 'ZG': // Landed
-                    mockData.departure.actualTime = { utc: new Date(now.getTime() - 4 * 3600000).toISOString() };
-                    mockData.arrival.actualTime = { utc: new Date(now.getTime() - 30 * 60000).toISOString() };
-                    mockData.greatCircleDistance.meter = 0;
-                    break;
-                case 'TG': // En Route
-                    mockData.departure.actualTime = { utc: new Date(now.getTime() - 2 * 3600000).toISOString() };
-                    mockData.arrival.revisedTime = { utc: new Date(now.getTime() + 90 * 60000).toISOString() };
-                    mockData.greatCircleDistance.meter = 1000;
-                    break;
-                case 'WB': // Scheduled
-                    mockData.departure.scheduledTime = { utc: new Date(now.getTime() + 3 * 3600000).toISOString() };
-                    mockData.arrival.scheduledTime = { utc: new Date(now.getTime() + 6 * 3600000).toISOString() };
-                    mockData.greatCircleDistance.meter = 5000000;
-                    break;
-                 case 'CP': // Data Not Found
-                    return null;
-                default: // Default to En Route
-                    mockData.departure.actualTime = { utc: new Date(now.getTime() - 1 * 3600000).toISOString() };
-                    mockData.arrival.predictedTime = { utc: new Date(now.getTime() + 45 * 60000).toISOString() };
-                    mockData.greatCircleDistance.meter = 2000;
-            }
-            return [mockData];
-        }
-
         async function refreshFlights() {
             const container = document.getElementById('flightsContainer');
             const summaryContainer = document.getElementById('landedSummary');
@@ -818,25 +678,13 @@
             
             try {
                 let results;
-                // --- UPDATED to handle passenger-specific date logic ---
-                if (isPreviewMode) {
-                    addDebugLog('Generating mock data for preview.');
-                    results = flights.map(flight => ({
-                        ...flight,
-                        data: generateMockFlightData(flight.passenger)
-                    }));
-                } else {
-                    // Fetch flight data for each passenger individually to apply specific date logic
-                    addDebugLog('Fetching flight data for each passenger with specific date rules.');
-                    
-                    const resultsPromises = flights.map(flight => 
-                        // Call getFlightInfo with both the flight number AND passenger initials
-                        getFlightInfo(flight.flight, flight.passenger).then(data => ({
-                            ...flight,
-                            data: data
-                        }))
-                    );
 
+                if (isPreviewMode) {
+                    results = flights.map(flight => ({...flight, data: generateMockFlightData(flight.passenger) }));
+                } else {
+                    const resultsPromises = flights.map(flight => 
+                        getFlightInfo(flight.flight, flight.passenger).then(data => ({...flight, data: data }))
+                    );
                     results = await Promise.all(resultsPromises);
                 }
 
@@ -845,46 +693,26 @@
                     const status = getFlightStatus(bestFlightData);
                     return { ...flight, bestFlightData, status };
                 });
-
-                const activeFlights = processedResults.filter(f => f.status.status !== 'Landed');
+                
+                const activeFlights = processedResults.filter(f => f.status.status !== 'Landed' && f.status.status !== 'Canceled');
                 const landedFlights = processedResults.filter(f => f.status.status === 'Landed');
+                const otherFlights = processedResults.filter(f => f.status.status === 'Canceled');
 
-                landedFlights.sort((a, b) => {
-                    const timeA = new Date(a.bestFlightData?.arrival?.actualTime?.utc || a.bestFlightData?.arrival?.revisedTime?.utc || 0);
-                    const timeB = new Date(b.bestFlightData?.arrival?.actualTime?.utc || b.bestFlightData?.arrival?.revisedTime?.utc || 0);
-                    return timeA - timeB;
-                });
-
-                activeFlights.sort((a, b) => {
-                    const timeA = new Date(a.bestFlightData?.arrival?.revisedTime?.utc || a.bestFlightData?.arrival?.predictedTime?.utc || a.bestFlightData?.arrival?.scheduledTime?.utc || '9999');
-                    const timeB = new Date(b.bestFlightData?.arrival?.revisedTime?.utc || b.bestFlightData?.arrival?.predictedTime?.utc || b.bestFlightData?.arrival?.scheduledTime?.utc || '9999');
-                    return timeA - timeB;
-                });
+                landedFlights.sort((a, b) => new Date(a.bestFlightData?.arrival?.actualTime?.utc || 0) - new Date(b.bestFlightData?.arrival?.actualTime?.utc || 0));
+                activeFlights.sort((a, b) => new Date(a.bestFlightData?.arrival?.revisedTime?.utc || a.bestFlightData?.arrival?.scheduledTime?.utc || '9999') - new Date(b.bestFlightData?.arrival?.revisedTime?.utc || b.bestFlightData?.arrival?.scheduledTime?.utc || '9999'));
 
                 if (landedFlights.length > 0) {
-                    const summaryHtml = landedFlights.map(flight => {
-                        const arrivalTimeObj = flight.bestFlightData?.arrival?.actualTime || flight.bestFlightData?.arrival?.revisedTime;
-                        const fullArrivalTime = formatTime(arrivalTimeObj, 'America/Denver');
-
-                        // Takes "12:47 AM MDT" and turns it into "12:47 AM"
-                        const summaryTime = fullArrivalTime.split(' ').slice(0, 2).join(' ');
-
-                        return `<div class="landed-passenger">${flight.passenger} (${summaryTime})</div>`;
-                    }).join('');
-
-                    summaryContainer.className = 'landed-summary';
+                    const summaryHtml = landedFlights.map(flight => `<div class="landed-passenger">${flight.passenger} (${formatTime(flight.bestFlightData.arrival.actualTime, 'America/Denver').split(' ')[0]})</div>`).join('');
                     summaryContainer.innerHTML = `<h3>Landed ✅</h3><div class="landed-list">${summaryHtml}</div>`;
                     summaryContainer.style.display = 'block';
                 }
 
-                const allFlightsInOrder = [...activeFlights, ...landedFlights];
+                const allFlightsInOrder = [...activeFlights, ...otherFlights, ...landedFlights];
                 container.innerHTML = allFlightsInOrder.map(flight => 
                     createFlightCard(flight.passenger, flight.airline, flight.flight, flight.data)
                 ).join('');
                 
-                document.getElementById('lastUpdated').textContent = 
-                    `Last updated: ${new Date().toLocaleTimeString()}`;
-                
+                document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
                 addDebugLog('Flight refresh completed successfully');
                     
             } catch (error) {
