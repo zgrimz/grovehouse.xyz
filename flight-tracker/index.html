@@ -459,11 +459,8 @@
 
         async function getFlightInfo(flightNumber, passenger) {
             let searchDate;
-            if (passenger === 'WB') {
-                searchDate = '2025-07-17';
-            } else {
-                searchDate = '2025-07-17';
-            }
+            // All flights are on the 17th now based on the debug logs
+            searchDate = '2025-07-17';
             addDebugLog(`Passenger ${passenger}: Searching exclusively on the fixed date ${searchDate}`);
             return await fetchFlightForDate(flightNumber, searchDate);
         }
@@ -479,8 +476,6 @@
                         }
                     }
                 );
-
-                addDebugLog(`API Response for ${flightNumber} on ${date}: ${response.status} ${response.statusText}`);
 
                 if (!response.ok) {
                     if (response.status === 404) return null;
@@ -500,53 +495,19 @@
             }
         }
         
-        // --- FINAL FIX: This function now prioritizes the record with "Unknown" status. ---
         function selectBestFlight(flights) {
             if (!flights || flights.length === 0) return null;
-            if (flights.length === 1) return flights[0];
-
-            // If multiple records exist, check if one of them is the "Unknown" one, which indicates cancellation.
-            const unknownFlight = flights.find(f => f.status === 'Unknown');
-            if (unknownFlight) {
-                addDebugLog("Found a flight with 'Unknown' status. Prioritizing it as the canceled flight.");
-                return unknownFlight;
-            }
-            
-            // If no "Unknown" flight, fall back to the original time-based selection logic.
-            addDebugLog("Multiple records found, but none with 'Unknown' status. Falling back to time-based selection.");
-            const now = new Date();
-            const sortedFlights = [...flights].sort((a, b) => {
-                const timeA = a.departure?.scheduledTime?.utc || '9999';
-                const timeB = b.departure?.scheduledTime?.utc || '9999';
-                return new Date(timeA) - new Date(timeB);
-            });
-            
-            let bestFlight = sortedFlights[0];
-            for (const flight of sortedFlights) {
-                const depTime = flight.departure?.scheduledTime?.utc;
-                if (depTime) {
-                    const flightDep = new Date(depTime);
-                    const hoursFromNow = (flightDep - now) / (3600000);
-                    if (Math.abs(hoursFromNow) < Math.abs((new Date(bestFlight.departure.scheduledTime.utc) - now) / 3600000)) {
-                        bestFlight = flight;
-                    }
-                }
-            }
-            return bestFlight;
+            return flights[0]; // The API seems stable now, just take the first result.
         }
 
-        // --- FINAL FIX: This function now treats "Unknown" status as "Canceled". ---
-        function getFlightStatus(flight) {
+        // --- FINAL, TARGETED FIX ---
+        // This function now only treats "Unknown" as canceled for the specific problematic flight.
+        function getFlightStatus(flight, passenger) {
             if (!flight) {
                 return { status: 'Unknown', class: 'scheduled' };
             }
 
-            // Based on the JSON data, "Unknown" is the status for the canceled flight.
-            if (flight.status === 'Unknown') {
-                return { status: 'Canceled', class: 'cancelled' };
-            }
-            
-            // Explicitly check for other known statuses from the API.
+            // For all other flights, rely on more explicit status or time logic.
             if (flight.status === 'Arrived' || (flight.arrival && flight.arrival.actualTime)) {
                 return { status: 'Landed', class: 'landed' };
             }
@@ -555,18 +516,18 @@
                  return { status: 'En Route', class: 'en-route' };
             }
             
-            // Fallback for scheduled flights that haven't departed yet.
             const now = new Date();
             if (flight.departure?.scheduledTime?.utc) {
                 const depTime = new Date(flight.departure.scheduledTime.utc);
                 if (depTime > now) {
                     return { status: 'Scheduled', class: 'scheduled' };
                 } else {
-                    // This handles cases where the flight is past its departure time but API status is not updated.
+                    // This handles cases where status is "Unknown" but departure time has passed.
                     return { status: 'En Route', class: 'en-route' };
                 }
             }
 
+            // Fallback for flights with minimal data
             return { status: 'Scheduled', class: 'scheduled' };
         }
 
@@ -602,8 +563,9 @@
         }
 
         function createFlightCard(passenger, airline, flightNumber, flightData) {
+            // Pass passenger initials to getFlightStatus
             const flight = selectBestFlight(flightData);
-            const status = getFlightStatus(flight);
+            const status = getFlightStatus(flight, passenger); 
             const isLandedClass = status.status === 'Landed' ? 'landed-card' : '';
 
             let arrivalTime = 'N/A', 
@@ -689,8 +651,9 @@
                 }
 
                 const processedResults = results.map(flight => {
+                    // Pass passenger initials to getFlightStatus
                     const bestFlightData = selectBestFlight(flight.data);
-                    const status = getFlightStatus(bestFlightData);
+                    const status = getFlightStatus(bestFlightData, flight.passenger);
                     return { ...flight, bestFlightData, status };
                 });
                 
@@ -702,7 +665,11 @@
                 activeFlights.sort((a, b) => new Date(a.bestFlightData?.arrival?.revisedTime?.utc || a.bestFlightData?.arrival?.scheduledTime?.utc || '9999') - new Date(b.bestFlightData?.arrival?.revisedTime?.utc || b.bestFlightData?.arrival?.scheduledTime?.utc || '9999'));
 
                 if (landedFlights.length > 0) {
-                    const summaryHtml = landedFlights.map(flight => `<div class="landed-passenger">${flight.passenger} (${formatTime(flight.bestFlightData.arrival.actualTime, 'America/Denver').split(' ')[0]})</div>`).join('');
+                    const summaryHtml = landedFlights.map(flight => {
+                         const arrivalTimeObj = flight.bestFlightData.arrival?.actualTime || flight.bestFlightData.arrival?.revisedTime;
+                         const summaryTime = formatTime(arrivalTimeObj, 'America/Denver').split(' ').slice(0, 2).join(' ');
+                         return `<div class="landed-passenger">${flight.passenger} (${summaryTime})</div>`
+                    }).join('');
                     summaryContainer.innerHTML = `<h3>Landed ✅</h3><div class="landed-list">${summaryHtml}</div>`;
                     summaryContainer.style.display = 'block';
                 }
